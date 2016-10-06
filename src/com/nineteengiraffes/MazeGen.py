@@ -7,146 +7,98 @@ from com.nineteengiraffes.Wall import Wall
 
 
 def main():
-    
-    cells = blank_cells(2, 1, 2)
-    walls = blank_walls(2, 1, 2, cells)
-    
-    print(walls)
-    print(cells)
-    
+    gen(2, 2, 1)
+
 
 def gen(x, y, z):
     cells = blank_cells(x, y, z)
     walls = blank_walls(x, y, z, cells)
-    check = 1
+    crumbs = 1
+    
+    print(walls)
+    print(cells)
     
     while len(walls) > 0:
         wall = choice(walls)
-        place_wall(wall, cells, check)
+        place_wall(wall, cells, crumbs)
         walls.remove(wall)
-        check += 1
-
-def blank_maze2(x, y, z):
-    cells_3D = []
-    walls = []
-    
-    for xindex in range(x):
-        cells_2D = []
-        for yindex in range(y):
-            cells_1D = []
-            for zindex in range(z):
-                new_cell = Cell(1 - (xindex == 0), 1 - (yindex == 0), 1 - (zindex == 0))
-                cells_1D.append(new_cell)
-                if new_cell.west == 1:
-                    walls.append((xindex, yindex, zindex, 1))
-                if new_cell.south == 1:
-                    walls.append((xindex, yindex, zindex, 2))
-                if new_cell.down == 1:
-                    walls.append((xindex, yindex, zindex, 3))
-            cells_2D.append(cells_1D)
-        cells_3D.append(cells_2D)
-    
-    return cells_3D, walls
+        crumbs += 1
+        
+    print(walls)
+    print(cells)
 
 def blank_cells(x, y, z):
     
     cells_3D = []
-    for xindex in range(x):
+    for xindex in range(x+2):
         cells_2D = []
-        for yindex in range(y):
+        for yindex in range(y+2):
             cells_1D = []
-            for zindex in range(z):
-                cells_1D.append(Cell(xindex, yindex, zindex))
+            for zindex in range(z+2):
+                cells_1D.append(Cell((xindex, yindex, zindex)))
             cells_2D.append(cells_1D)
         cells_3D.append(cells_2D)
     
     return cells_3D
 
-def blank_walls(x, y, z, cells):
+def blank_walls(xmax, ymax, zmax, cells):
     
     walls = []
-    for xindex in range(x):
-        for yindex in range(y):
-            for zindex in range(z):
-                xwall = Wall(cells[xindex][yindex][zindex], 'w')
-                ywall = Wall(cells[xindex][yindex][zindex], 's')
-                zwall = Wall(cells[xindex][yindex][zindex], 'd')
+    for x in range(1, xmax + 1):
+        for y in range(1, ymax + 1):
+            for z in range(1, zmax + 1):
+                xwall = Wall(cells[x][y][z], cells[x - 1][y][z])
+                ywall = Wall(cells[x][y][z], cells[x][y - 1][z])
+                zwall = Wall(cells[x][y][z], cells[x][y][z - 1])
                 
-                if xindex + 1 == x:
-                    Wall(cells[xindex][yindex][zindex], 'e', 0)
-                if xindex == 0:
+                if x == xmax:
+                    Wall(cells[x + 1][y][z], cells[x][y][z], 0)
+                
+                if x == 1:
                     xwall.set_state(0)
                 else:
-                    xwall.link_cell(cells[xindex-1][yindex][zindex], 'e')
                     walls.append(xwall)
-
-                if yindex + 1 == y:
-                    Wall(cells[xindex][yindex][zindex], 'n', 0)
-                if yindex == 0:
+                
+                if y == ymax:
+                    Wall(cells[x][y + 1][z], cells[x][y][z], 0)
+                
+                if y == 1:
                     ywall.set_state(0)
                 else:
-                    ywall.link_cell(cells[xindex][yindex-1][zindex], 'n')
                     walls.append(ywall)
-
-                if zindex + 1 == z:
-                    Wall(cells[xindex][yindex][zindex], 'u', 0)
-                if zindex == 0:
+                
+                if z == zmax:
+                    Wall(cells[x][y][z + 1], cells[x][y][z], 0)
+                
+                if z == 1:
                     zwall.set_state(0)
                 else:
-                    zwall.link_cell(cells[xindex][yindex][zindex-1], 'u')
                     walls.append(zwall)
-
+    
     return walls
 
-def place_wall(wall, cells, check):
-    if wall.state != 1 or len(wall.cells) != 2:
+def place_wall(wall, cells, crumbs):
+    if wall.state != 1:
         return False
     wall.set_state(0)
-    if not check_path(wall.cells.items()[0], wall.cells.items()[1], cells, check):
+    print(wall)
+    if not check_path(wall.cells[0], wall.cells[1], cells, crumbs):
         wall.set_state(-1)
         return False
     return True
 
-def check_path(current_cell, target_cell, cells, check):
-    current_cell.check = check
-    
-    for side, wall in current_cell.walls.items():
+def check_path(current_cell, target_cell, cells, crumbs):
+    current_cell.drop_bread_crumbs(crumbs)
+    print(str(current_cell) + " " + str(target_cell) + " b" + str(crumbs))
+    for xyz, wall in current_cell.walls.items():
         if wall.state == 1:
-            next_cell = cells[XYZ_nsew(side)[0]+current_cell.x][XYZ_nsew(side)[1]+current_cell.y][XYZ_nsew(side)[2]+current_cell.z]
+            next_cell = cells[xyz[0]][xyz[1]][xyz[2]]
             if next_cell == target_cell:
                 return True
-            elif next_cell.check < check:
-                check_path(next_cell, target_cell, cells, check)
+            elif next_cell.check_crumbs(crumbs):
+                check_path(next_cell, target_cell, cells, crumbs)
     return False
 
-
-def NSEW_xyz(xyz):
-    if xyz[0] == 1:
-        return 'e'
-    elif xyz[0] == -1:
-        return 'w'
-    if xyz[1] == 1:
-        return 'n'
-    elif xyz[1] == -1:
-        return 's'
-    if xyz[2] == 1:
-        return 'u'
-    elif xyz[2] == -1:
-        return 'd'
-    
-def XYZ_nsew(nsew):
-    if nsew == 'e':
-        return [1,0,0]
-    elif nsew == 'w':
-        return [-1,0,0]
-    if nsew == 'n':
-        return [0,1,0]
-    elif nsew == 's':
-        return [0,-1,0]
-    if nsew == 'u':
-        return [0,0,1]
-    elif nsew == 'd':
-        return [0,0,-1]
 
 if __name__ == '__main__':
     sys.exit(main())

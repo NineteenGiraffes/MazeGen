@@ -1,22 +1,26 @@
 
 class Cell(object):
     
-    def __init__(self, x, y, z):
-        self.check = 0
+    def __init__(self, xyz):
+        self.bread_crumbs = 0
         self.walls = {}
-        self.x = x
-        self.y = y
-        self.z = z
+        self.xyz = xyz
 
-    def add_wall(self, wall, side):
-        self.walls[side] = wall
+    def add_wall(self, wall, xyz):
+        self.walls[xyz] = wall
 
-    def set_state(self, state, side):
-        if self.walls.__contains__(side):
-            self.walls[side].state = state
+    def set_state(self, state, xyz):
+        if self.walls.__contains__(xyz):
+            self.walls[xyz].state = state
+
+    def check_crumbs(self, c):
+        return self.bread_crumbs < c
+    
+    def drop_bread_crumbs(self, crumbs):
+        self.bread_crumbs = crumbs
 
     def __repr__(self):
         sides = ""
-        for key, wall in self.walls.items():
-            sides = sides + " " + key + str(wall.state)
-        return "C: %s%s%s S:" % (self.x,self.y,self.z) + sides
+        for wall in self.walls.values():
+            sides = sides + " " + str(wall.state)
+        return "C:%s%s%s" % self.xyz + sides
