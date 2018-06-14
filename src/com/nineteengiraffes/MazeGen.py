@@ -77,7 +77,7 @@ class MazeGen(Application):
 # Maze generation
 
 
-    def random_side_fill(self, depth=True):	# set state of all sides randomly to create maze using depth first or breadth first search 
+    def random_side_fill(self, depth_first=True, log=False):	# set state of all sides randomly to create maze using depth first or breadth first search 
         path_marker = 1              # marker for path checks
         
         while len(self.sides) > 0:      # continue till all sides are set
@@ -86,23 +86,23 @@ class MazeGen(Application):
             if side.state == -1:        # verify side state is unset
                 side.set_state(1)       # set state to 'wall'
                 self.steps = 0
-                if depth:
-                    if not self.check_path_d(side.cells[0], side.cells[1], path_marker):   # if path check fails, set state to 'hallway'
+                if depth_first:
+                    if not self.check_path_d(side.cells[0], side.cells[1], path_marker, log):   # if path check fails, set state to 'hallway'
                         side.set_state(0)
                 else:
-                    if not self.check_path_b(side.cells[0], side.cells[1], path_marker):   # if path check fails, set state to 'hallway'
+                    if not self.check_path_b(side.cells[0], side.cells[1], path_marker, log):   # if path check fails, set state to 'hallway'
                         side.set_state(0)
                     
             self.sides.remove(side)     # remove Side from set
             path_marker += 1
             self.trips.append(self.steps)
         avg_trip = sum(self.trips) / len(self.trips)
-         
-        print("Trips: " + str(len(self.trips)) + " Avg: " + str(round(avg_trip)) + " " + str(round(avg_trip/len(self.trips),3)) + " Cells: " + str((len(self.cells)-2) * (len(self.cells[0])-2) * (len(self.cells[0][0])-2)))
-        print(str(self.trips))              # deadend trips take many steps
+        if log:
+            print("Trips: " + str(len(self.trips)) + " Avg: " + str(round(avg_trip)) + " " + str(round(avg_trip/len(self.trips),3)) + " Cells: " + str((len(self.cells)-2) * (len(self.cells[0])-2) * (len(self.cells[0][0])-2)))
+            print(str(self.trips))              # dead end trips take many steps
         self.clear_path_markers()         # clear all path markers
 
-    def random_cell_explore_out(self, pop=False):	# start at a random cell and build out with sample() or pop()
+    def random_cell_explore_out(self, pop=False, log=False):	# start at a random cell and build out with sample() or pop()
         x = choice(range(1, len(self.cells) - 1))
         y = choice(range(1, len(self.cells[x]) - 1))
         z = choice(range(1, len(self.cells[x][y]) - 1))
@@ -112,7 +112,8 @@ class MazeGen(Application):
         unexplored_sides = starting_cell.unset_sides()   # unexplored sides of start cell
         explored_cells.add(starting_cell)
         self.steps = 0
-        print("- %s C:%s S:%s" % (self.steps, len(explored_cells),len(unexplored_sides)))
+        if log:
+            print("- %s C:%s S:%s" % (self.steps, len(explored_cells),len(unexplored_sides)))
         
         while len(unexplored_sides) > 0:      # continue till all side are explored
             self.steps += 1
@@ -129,16 +130,18 @@ class MazeGen(Application):
                             
             if new_cell == None:    # already been to both cells so set state to Wall
                 side.set_state(1)
-                print("1 %s C:%s S:%s" % (self.steps, len(explored_cells),len(unexplored_sides)))
+                if log:
+                    print("1 %s C:%s S:%s" % (self.steps, len(explored_cells),len(unexplored_sides)))
             else:                   # newly explored cell so set state to Hallway
                 side.set_state(0)
                 unexplored_sides.update(new_cell.unset_sides())  # add unexplored sides for newly explored cell
                 explored_cells.add(new_cell)
-                print("0 %s C:%s S:%s" % (self.steps, len(explored_cells),len(unexplored_sides)))
+                if log:
+                    print("0 %s C:%s S:%s" % (self.steps, len(explored_cells),len(unexplored_sides)))
 
         return
 
-    def check_path_b(self, start_cell, target_cell, path_marker):    	# returns true if path exists from start_cell to target_cell (uses breath first)
+    def check_path_b(self, start_cell, target_cell, path_marker, log):    	# returns true if path exists from start_cell to target_cell (uses breath first)
         current_cell = start_cell                           # remember start cell for back tracking
         cell_stack = deque()                                # empty stack
         current_cell.mark_as_visited(path_marker)           # mark start cell as visited
@@ -149,7 +152,8 @@ class MazeGen(Application):
                 next_cell = self.cells[xyz[0]][xyz[1]][xyz[2]]
                 if next_cell.is_unvisited(path_marker):                 # if unvisited, add to stack
                     if next_cell == target_cell:                        # return if target cell reached
-                        print(str(next_cell) + " " + str(target_cell) + " T  Step " + str(self.steps) + " " + str(len(cell_stack)))
+                        if log:
+                            print(str(next_cell) + " " + str(target_cell) + " T  Step " + str(self.steps) + " " + str(len(cell_stack)))
                         return True
                     next_cell.mark_as_visited(path_marker)
                     cell_stack.append(next_cell)
@@ -158,10 +162,11 @@ class MazeGen(Application):
                 current_cell = cell_stack.popleft()
                 
             else:
-                print(str(current_cell) + " " + str(target_cell) + "  F Step " + str(self.steps))
+                if log:
+                    print(str(current_cell) + " " + str(target_cell) + "  F Step " + str(self.steps))
                 return False
 
-    def check_path_d(self, start_cell, target_cell, path_marker):  	    # returns true if path exists from start_cell to target_cell (uses depth first)
+    def check_path_d(self, start_cell, target_cell, path_marker, log):  	    # returns true if path exists from start_cell to target_cell (uses depth first)
         current_cell = start_cell                           # remember start cell for back tracking
         current_cell.mark_as_visited(path_marker)           # mark start cell as visited
         current_cell.reset_viable_sides_id()                # reset cell sides
@@ -173,7 +178,8 @@ class MazeGen(Application):
                 xyz = current_cell.viable_sides_id.pop()
                 next_cell = self.cells[xyz[0]][xyz[1]][xyz[2]]
                 if next_cell == target_cell:                        # return if target cell reached
-                    print(str(current_cell) + " " + str(target_cell) + " T  Step " + str(self.steps))
+                    if log:
+                        print(str(current_cell) + " " + str(target_cell) + " T  Step " + str(self.steps))
                     return True
                 if next_cell.is_unvisited(path_marker):               # if picked side is unvisited, jump to next cell 
                     next_cell.back_track_cell = current_cell
@@ -183,7 +189,8 @@ class MazeGen(Application):
                     self.steps += 1
                 continue
             elif current_cell == start_cell:       # this is the starting cell and no more back tracking is possible
-                print(str(current_cell) + " " + str(target_cell) + "  F Step " + str(self.steps))
+                if log:
+                    print(str(current_cell) + " " + str(target_cell) + "  F Step " + str(self.steps))
                 return False
             else:
                 current_cell = current_cell.back_track_cell         # back track one step
@@ -289,13 +296,71 @@ class MazeGen(Application):
             print(print_string_2 + "+")                 # print bottom of cells only on last row of each level
 
 
-    def open_app(self): # runs the generator
-        self.gen_empty(x=3, y=5, z=25)
-#         self.random_side_fill()
-        self.random_cell_explore_out()
-#         self.convert_to_bit_array()
+    def run(self): # runs the generator
+        while True:
+            try:
+                x = int(input("Maze depth: (1 - 15) "))
+                break
+            except:
+                print("    Please input an integer in range")
+        
+        while True:
+            try:
+                y = int(input("Maze height: (1 - 15) "))
+                break
+            except:
+                print("    Please input an integer in range")
+        while True:
+            try:
+                z = int(input("Maze width: (1 - 40) "))
+                break
+            except:
+                print("    Please input an integer in range")
+                
+        self.gen_empty(x, y, z)
+        print(" ")
+        
+        while True:
+            gen_type = input("Explore or Spot fill: (E/S) ")
+            if gen_type == "E" or gen_type == "e":
+                pop = False
+                while True:
+                    gen_type = input("Random or Ordered: (R/O) ")
+                    if gen_type == "R" or gen_type == "r":
+                        break
+                    elif gen_type == "O" or gen_type == "o":
+                        pop = True
+                        break
+                    else:
+                        print("    Please choose 'r' or 'o'")
+                
+                log = (input("Generate Maze! (return)") == "log")
+                if (not log) and (x*y*z > 9000):
+                    print("please wait...")
+                self.random_cell_explore_out(pop, log)
+                break
+            elif gen_type == "S" or gen_type == "s":
+                depth_first = False
+                while True:
+                    gen_type = input("Depth first or Breadth first: (B/D) ")
+                    if gen_type == "B" or gen_type == "b":
+                        break
+                    elif gen_type == "D" or gen_type == "d":
+                        depth_first = True
+                        break
+                    else:
+                        print("    Please choose 'b' or 'd'")
+                log = (input("Generate Maze! (return)") == "log")
+                if (not log) and (x*y*z > 600):
+                    print("please wait...")
+                self.random_side_fill(depth_first, log)
+                break
+            else:
+                print("    Please choose 'e' or 's'")
+            
+#        simple_3d_array_for_export = self.convert_to_bit_array()
         self.print_ascii()
         
 
-MazeGen().open_app()
+MazeGen().run()
     
