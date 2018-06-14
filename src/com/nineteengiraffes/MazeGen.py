@@ -1,7 +1,9 @@
 
-from random import choice
+from collections import deque
+from math import sqrt
+from random import choice, sample
 
-from GUI import Application#, Button, Label, View, Window
+from GUI import Application
 
 from com.nineteengiraffes.Cell import Cell
 from com.nineteengiraffes.Side import Side
@@ -11,8 +13,8 @@ class MazeGen(Application):
 
     cells = None    # to be 3D array of Cell objects
     sides = None    # to be set of interior Side objects
-    steps = 0
-    trips = []
+    steps = 0       # counter
+    trips = []      # log/counter
 
 
 # blank maze setup
@@ -20,9 +22,6 @@ class MazeGen(Application):
         
         self.cells = self._gen_empty_cells(x, y, z) # initialize Cell 3D array
         self.sides = self._gen_empty_sides(x, y, z) # initialize interior Side set
-        
-#         print(self.sides)
-#         print(self.cells)
 
     def _gen_empty_cells(self, x, y, z):    # returns a 3D array of new Cell objects
         
@@ -38,9 +37,9 @@ class MazeGen(Application):
         
         return cells_3D
 
-    def _gen_empty_sides(self, xmax, ymax, zmax):   # returns a set of new interior Side objects
+    def _gen_empty_sides(self, xmax, ymax, zmax):   # returns a list of new interior Side objects
         
-        new_sides = []
+        new_sides = list()
         for x in range(1, xmax + 1):    # start at 1 because 'ghost' Cells don't get sides
             for y in range(1, ymax + 1):
                 for z in range(1, zmax + 1):
@@ -76,102 +75,155 @@ class MazeGen(Application):
          
 
 # Maze generation
-    def random_side_fill(self): # set state of all sides randomly to create maze
-        crumbs = 1              # marker for path checks
+
+
+    def random_side_fill(self, depth=True):	# set state of all sides randomly to create maze using depth first or breadth first search 
+        path_marker = 1              # marker for path checks
         
         while len(self.sides) > 0:      # continue till all sides are set
             side = choice(self.sides)   # pick random side
         
             if side.state == -1:        # verify side state is unset
                 side.set_state(1)       # set state to 'wall'
-#                 print(side)
                 self.steps = 0
-                if not self.check_path_d(side.cells[0], side.cells[1]):   # if path check fails, set state to 'hallway'
-#                 if not self.check_path_r(side.cells[0], side.cells[1], crumbs):   # if path check fails, set state to 'hallway'
-                    side.set_state(0)
-#                 print(str(side.state) + " in " + str(self.steps) + " Steps")
-    
+                if depth:
+                    if not self.check_path_d(side.cells[0], side.cells[1], path_marker):   # if path check fails, set state to 'hallway'
+                        side.set_state(0)
+                else:
+                    if not self.check_path_b(side.cells[0], side.cells[1], path_marker):   # if path check fails, set state to 'hallway'
+                        side.set_state(0)
+                    
             self.sides.remove(side)     # remove Side from set
-            crumbs += 1
+            path_marker += 1
             self.trips.append(self.steps)
         avg_trip = sum(self.trips) / len(self.trips)
-        
-        print("Trips: " + str(len(self.trips)) + " Avg: " + str(round(avg_trip)) + " " + str(round(avg_trip/len(self.trips),2)) + " Cells: " + str((len(self.cells)-2) * (len(self.cells[0])-2) * (len(self.cells[0][0])-2)))
-        
-        self.clear_all_crumbs()         # clear all path markers
-#         print(self.sides)
-#         print(self.cells)
+         
+        print("Trips: " + str(len(self.trips)) + " Avg: " + str(round(avg_trip)) + " " + str(round(avg_trip/len(self.trips),3)) + " Cells: " + str((len(self.cells)-2) * (len(self.cells[0])-2) * (len(self.cells[0][0])-2)))
+        print(str(self.trips))              # deadend trips take many steps
+        self.clear_path_markers()         # clear all path markers
 
-    def check_path_d(self, current_cell, target_cell):      # returns true if path exists from current_cell to target_cell (uses depth first)
-        self.open_path()
-        current_cell.back_track_cell = target_cell            # mark this cell as the start, can't back track past here
+    def random_cell_explore_out(self, pop=False):	# start at a random cell and build out with sample() or pop()
+        x = choice(range(1, len(self.cells) - 1))
+        y = choice(range(1, len(self.cells[x]) - 1))
+        z = choice(range(1, len(self.cells[x][y]) - 1))
+        starting_cell = self.cells[x][y][z]             # pick random cell
+        
+        explored_cells = set()                          # explored cells
+        unexplored_sides = starting_cell.unset_sides()   # unexplored sides of start cell
+        explored_cells.add(starting_cell)
+        self.steps = 0
+        print("- %s C:%s S:%s" % (self.steps, len(explored_cells),len(unexplored_sides)))
+        
+        while len(unexplored_sides) > 0:      # continue till all side are explored
+            self.steps += 1
+            if pop:
+                side = unexplored_sides.pop()
+            else:
+                side = sample(unexplored_sides,1)[0]
+            unexplored_sides.discard(side)
+
+            new_cell = None
+            for cell in side.cells:
+                if cell not in explored_cells:
+                    new_cell = cell
+                            
+            if new_cell == None:    # already been to both cells so set state to Wall
+                side.set_state(1)
+                print("1 %s C:%s S:%s" % (self.steps, len(explored_cells),len(unexplored_sides)))
+            else:                   # newly explored cell so set state to Hallway
+                side.set_state(0)
+                unexplored_sides.update(new_cell.unset_sides())  # add unexplored sides for newly explored cell
+                explored_cells.add(new_cell)
+                print("0 %s C:%s S:%s" % (self.steps, len(explored_cells),len(unexplored_sides)))
+
+        return
+
+    def check_path_b(self, start_cell, target_cell, path_marker):    	# returns true if path exists from start_cell to target_cell (uses breath first)
+        current_cell = start_cell                           # remember start cell for back tracking
+        cell_stack = deque()                                # empty stack
+        current_cell.mark_as_visited(path_marker)           # mark start cell as visited
         
         while True:
-            self.steps += 1
-            if len(current_cell.remaing_sides) > 0:                 # if there are unchecked sides, pick one
-                
-                xyz = current_cell.remaing_sides.popitem()[0]
+            current_cell.reset_viable_sides_id()
+            for xyz in current_cell.viable_sides_id:
                 next_cell = self.cells[xyz[0]][xyz[1]][xyz[2]]
-                next_cell.remaing_sides.pop(current_cell.xyz, None)
+                if next_cell.is_unvisited(path_marker):                 # if unvisited, add to stack
+                    if next_cell == target_cell:                        # return if target cell reached
+                        print(str(next_cell) + " " + str(target_cell) + " T  Step " + str(self.steps) + " " + str(len(cell_stack)))
+                        return True
+                    next_cell.mark_as_visited(path_marker)
+                    cell_stack.append(next_cell)
+                    self.steps += 1
+            if cell_stack:
+                current_cell = cell_stack.popleft()
+                
+            else:
+                print(str(current_cell) + " " + str(target_cell) + "  F Step " + str(self.steps))
+                return False
+
+    def check_path_d(self, start_cell, target_cell, path_marker):  	    # returns true if path exists from start_cell to target_cell (uses depth first)
+        current_cell = start_cell                           # remember start cell for back tracking
+        current_cell.mark_as_visited(path_marker)           # mark start cell as visited
+        current_cell.reset_viable_sides_id()                # reset cell sides
+        
+        while True:
+            if len(current_cell.viable_sides_id) > 0:                 # if there are unchecked sides, pick one
+                
+                current_cell.viable_sides_id.sort(key=self.xyz_sort(target_cell.xyz), reverse=True) # orders list so last side is closest to the target cell
+                xyz = current_cell.viable_sides_id.pop()
+                next_cell = self.cells[xyz[0]][xyz[1]][xyz[2]]
                 if next_cell == target_cell:                        # return if target cell reached
-#                     print(str(current_cell) + " " + str(target_cell) + " T Step " + str(self.steps))
+                    print(str(current_cell) + " " + str(target_cell) + " T  Step " + str(self.steps))
                     return True
-                if next_cell.back_track_cell is None:               # if picked side is unvisited, jump to next cell 
+                if next_cell.is_unvisited(path_marker):               # if picked side is unvisited, jump to next cell 
                     next_cell.back_track_cell = current_cell
+                    next_cell.mark_as_visited(path_marker)
+                    next_cell.reset_viable_sides_id()
                     current_cell = next_cell
+                    self.steps += 1
                 continue
-            elif current_cell.back_track_cell is target_cell:       # this is the starting cell and no more back tracking is possible
-#                 print(str(current_cell) + " " + str(target_cell) + " F Step " + str(self.steps))
+            elif current_cell == start_cell:       # this is the starting cell and no more back tracking is possible
+                print(str(current_cell) + " " + str(target_cell) + "  F Step " + str(self.steps))
                 return False
             else:
                 current_cell = current_cell.back_track_cell         # back track one step
 
-    def check_path_r(self, current_cell, target_cell, crumbs):    # returns true if path exists from current_cell to target_cell (uses recursion)
+    def check_path_r(self, start_cell, target_cell, path_marker):    	# returns true if path exists from start_cell to target_cell (uses recursion, only tiny mazes clear the python recursion limit)
         
-        current_cell.drop_bread_crumbs(crumbs)                  # mark cell as visited
-#         self.steps += 1
-        
-#         print(str(current_cell) + " " + str(target_cell) + " bc" + str(crumbs) + " Step " + str(self.steps))
-        for xyz, side in current_cell.sides.items():
+        start_cell.mark_as_visited(path_marker)                  # mark cell as visited
+        for xyz, side in start_cell.sides.items():
             if side.state != 1:                                 # skip to next side if side is a 'wall'
                 next_cell = self.cells[xyz[0]][xyz[1]][xyz[2]]
                 if next_cell == target_cell:                    # return if target cell reached
                     return True
-                elif next_cell.check_crumbs(crumbs):            # continue if unvisited
-                    if self.check_path_r(next_cell, target_cell, crumbs): # check path from the next cell
+                elif next_cell.is_unvisited(path_marker):            # continue if unvisited
+                    if self.check_path_r(next_cell, target_cell, path_marker): # check path from the next cell
                         return True
         return False
 
-    def open_path(self): # reset remaining_sides in all cells to include all open sides (unset or 'hallway')
+    def clear_path_markers(self):	# reset path_marker for all Cells to unvisited
         
         for cells_2D in self.cells:
             for cells_1D in cells_2D:
                 for cell in cells_1D:
-                    cell.remaing_sides = {}
-                    cell.back_track_cell = None
-                    for cell_id, side in cell.sides.items():
-                        if side.state != 1:
-                            cell.remaing_sides[cell_id] = side
+                    cell.mark_as_visited(0)
 
-    def clear_all_crumbs(self): # reset bread crumbs for all Cells to 0
-        
-        for cells_2D in self.cells:
-            for cells_1D in cells_2D:
-                for cell in cells_1D:
-                    cell.drop_bread_crumbs(0)
-
+    def xyz_sort(self, xyz2):       # returns function: key_xyz for use in sorting by distance
+        def key_xyz(xyz1):          # returns the distance from xyz1 to xyz2
+            dist = sqrt((xyz1[0]-xyz2[0])**2 + (xyz1[1]-xyz2[1])**2 + (xyz1[2]-xyz2[2])**2)   # distance formula xyz1 to xyz2
+            return dist
+        return key_xyz
 
 # outputs
+
+
     def convert_to_bit_array(self): # returns a 3D array of 6bit numbers representing each cell
         
         d3 = []
-#         print("x")
         for cells_2D in self.cells:
             d2 = []
-#             print("y")
             for cells_1D in cells_2D:
                 d1 = []
-#                 print("z")
                 for cell in cells_1D:
                     bit = 000000    # 6 bits to represent the 6 sides of each cell
                     for xyz, wall in cell.sides.items():            # xyz is the Cell on the opposite side of wall 
@@ -193,7 +245,6 @@ class MazeGen(Application):
                                     bit = bit | (wall.state << 2)   # if the wall is on the negative z side, set the 3nd bit to the wall state
                                 else:
                                     bit = bit | (wall.state << 5)   # if the wall is on the positive z side, set the 6th bit to the wall state
-#                     print(bin(bit))
                     d1.append(bit)
                 d2.append(d1)
             d3.append(d2)
@@ -238,34 +289,13 @@ class MazeGen(Application):
             print(print_string_2 + "+")                 # print bottom of cells only on last row of each level
 
 
-# run app
     def open_app(self): # runs the generator
-        self.gen_empty(x=2, y=3, z=22)
-        self.random_side_fill()
+        self.gen_empty(x=3, y=5, z=25)
+#         self.random_side_fill()
+        self.random_cell_explore_out()
 #         self.convert_to_bit_array()
         self.print_ascii()
-#         self.cells[1][1][1].remaing_sides = {}
-#         print(str(self.cells[1][1][1]))
-#         for id, side in self.cells[1][1][1].sides.items():         
-#             self.cells[1][1][1].remaing_sides[id] = side
-#          
-#         print(str(self.cells[1][1][1]))
-#         new_side = self.cells[1][1][1].remaing_sides.pop((1,1,2))
-#         self.open_path()
-#         print(str(self.cells[1][2][1]))
         
-        
-#         main_window = Window(style = 'standard', size = (400, 400),)
-#         main_view = View()
-#         quit_btn = Button("Quit", action = "quit_cmd", enabled = True)
-#         main_view.place(quit_btn, left = 50, top = 50)
-#         main_view.place(Label("Test"), left = 20, top = 20)
-#         main_window.place(main_view, left = 0, top = 0, right = 0, bottom = 0, sticky = 'nw')
-#         main_window.show()
-        
-
-# if __name__ == '__main__':
-#     pass
 
 MazeGen().open_app()
     

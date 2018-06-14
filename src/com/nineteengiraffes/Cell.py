@@ -2,26 +2,33 @@
 class Cell(object):
     
     def __init__(self, xyz):
-        self._bread_crumbs = 0  # marker for path finding r
-        self.remaing_sides = {} # dictionary of sides and adjacent cell IDs for path finding d
+        self._path_marker = 0  # marker for path finding
+        self.viable_sides_id = list() # list of IDs of sides viable for navigation (non solid)
         self.back_track_cell = None
         self.sides = {}         # dictionary of sides and adjacent cell IDs
         self.xyz = xyz          # cell ID (tuple)
 
-    def _add_side(self, side, xyz): # add side to dictionary
+    def _add_side(self, side, xyz): # add side to cell
         self.sides[xyz] = side
 
-    def check_crumbs(self, crumbs):  # returns true if cell does not have the current crumb count
-        return self._bread_crumbs < crumbs
-    
-    def drop_bread_crumbs(self, crumbs):    # marks the cell with the current crumb count
-        self._bread_crumbs = crumbs
+    def reset_viable_sides_id(self): # resets viable_sides_id to include all non solid sides
+        self.viable_sides_id = list()
+        for cell_id, side in self.sides.items():
+            if side.state != 1:
+                self.viable_sides_id.append(cell_id)
+
+    def unset_sides(self): # returns all unset sides
+        unset_sides = set()
+        for side in self.sides.values():
+            if side.state == -1:
+                unset_sides.add(side)
+        return unset_sides
+
+    def is_unvisited(self, path_marker): # returns true if cell is unvisited
+        return self._path_marker < path_marker
+
+    def mark_as_visited(self, path_marker): # marks the cell with the current crumb
+        self._path_marker = path_marker
 
     def __repr__(self):
-        walls = ""
-        for side in self.sides.values():
-            walls = walls + " " + str(side.state)
-#         walls = walls + ", "
-#         for side in self.remaing_sides.values():
-#             walls = walls + " " + str(side.state)
-        return "C:%s%s%s" % self.xyz + walls
+        return "C:%s,%s,%s" % self.xyz
