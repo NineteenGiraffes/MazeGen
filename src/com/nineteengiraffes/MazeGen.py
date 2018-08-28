@@ -3,13 +3,11 @@ from collections import deque
 from math import sqrt
 from random import choice, sample
 
-from GUI import Application
-
 from com.nineteengiraffes.Cell import Cell
 from com.nineteengiraffes.Side import Side
 
 
-class MazeGen(Application):
+class MazeGen():
 
     cells = None    # to be 3D array of Cell objects
     sides = None    # to be set of interior Side objects
