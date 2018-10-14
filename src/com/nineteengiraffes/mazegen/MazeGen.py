@@ -264,7 +264,7 @@ class MazeGen():
                 print_string_0 = ""
                 print_string_1 = ""
                 print_string_2 = ""
-                for z in range(1, len(self.cells[x][y]) - 1):# â†“â†‘â†•
+                for z in range(1, len(self.cells[x][y]) - 1):# ↓↑↕
                     x_output = " ↕ "                # set x to up and down 'hallway'
                     x_up_down = 0                   # no wall up or down
                     y_output = "   "                # set y to 'hallway'
